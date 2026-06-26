@@ -1,0 +1,1946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Affinity — find visual novels like the ones you love</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     DESIGN TOKENS
+     All colours, shadows, and radii live here as CSS variables.
+     To retheme the whole app, edit only this block.
+     ============================================================ */
+  :root {
+    /* backgrounds */
+    --bg:       #0E0B16;
+    --surface:  #171221;
+    --surface2: #1F1830;
+    --raise:    #271F3B;
+
+    /* text */
+    --ink:   #ECE7F2;
+    --muted: #9A92AD;
+    --faint: #6A6280;
+
+    /* accent colours */
+    --rose: #FF5C8A;   /* primary actions, highlight */
+    --gold: #E8B964;   /* staff matches, ratings     */
+    --cyan: #5CC8FF;   /* tech-category tag dot      */
+    --ero:  #D96A7A;   /* ero-category tag dot       */
+
+    /* borders & shadows */
+    --line:   rgba(255,255,255,.08);
+    --line2:  rgba(255,255,255,.14);
+    --shadow: 0 18px 50px -20px rgba(0,0,0,.7);
+  }
+
+  /* ============================================================
+     RESET & BASE
+     ============================================================ */
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    /* two soft radial glows bleeding in from corners, then the base dark bg */
+    background:
+      radial-gradient(1100px 600px at 78% -10%, rgba(255,92,138,.10), transparent 60%),
+      radial-gradient(900px 500px at -5%  8%,  rgba(92,200,255,.07), transparent 55%),
+      var(--bg);
+    color: var(--ink);
+    font-family: Inter, system-ui, sans-serif;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 22px 90px; }
+  a { color: inherit; }
+
+  /* ============================================================
+     MASTHEAD
+     ============================================================ */
+  header { padding: 46px 0 26px; }
+  .kicker {
+    font-size: 11px; letter-spacing: .34em;
+    text-transform: uppercase; color: var(--rose); font-weight: 600;
+  }
+  h1 {
+    font-family: Newsreader, serif; font-weight: 500;
+    font-size: clamp(40px, 7vw, 76px);
+    line-height: .98; margin: .18em 0 .12em; letter-spacing: -.01em;
+  }
+  h1 em { font-style: italic; color: var(--gold); }
+  .sub { color: var(--muted); max-width: 46ch; font-size: 15px; }
+
+  /* ============================================================
+     MODE TOGGLE  ("From a VN" / "From tags")
+     ============================================================ */
+  .modes {
+    display: inline-flex; gap: 2px; margin: 26px 0 18px;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 12px; padding: 4px;
+  }
+  .modes button {
+    appearance: none; border: 0; background: transparent; color: var(--muted);
+    font: inherit; font-size: 14px; font-weight: 500;
+    padding: 9px 18px; border-radius: 9px; cursor: pointer; transition: .18s;
+  }
+  .modes button[aria-selected="true"] { background: var(--raise); color: var(--ink); }
+
+  /* ============================================================
+     PANELS  (shared card style used by both modes)
+     ============================================================ */
+  .panel {
+    background: linear-gradient(180deg, var(--surface), rgba(23,18,33,.6));
+    border: 1px solid var(--line); border-radius: 18px;
+    padding: 20px; box-shadow: var(--shadow);
+  }
+
+  /* ---- text inputs ---- */
+  .field { position: relative; }
+  label.lbl {
+    display: block; font-size: 12px; letter-spacing: .04em;
+    color: var(--muted); margin: 0 0 8px 2px; text-transform: uppercase;
+  }
+  input[type=text] {
+    width: 100%; background: var(--bg); border: 1px solid var(--line2);
+    color: var(--ink); font: inherit; font-size: 16px;
+    padding: 13px 15px; border-radius: 11px; outline: none; transition: .15s;
+  }
+  input[type=text]:focus { border-color: var(--rose); box-shadow: 0 0 0 3px rgba(255,92,138,.16); }
+  input::placeholder { color: var(--faint); }
+
+  /* ---- autocomplete dropdown ---- */
+  .drop {
+    position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 30;
+    background: var(--surface2); border: 1px solid var(--line2);
+    border-radius: 12px; overflow: hidden;
+    box-shadow: var(--shadow); max-height: 340px; overflow-y: auto;
+  }
+  .drop .row {
+    display: flex; gap: 11px; align-items: center;
+    padding: 9px 12px; cursor: pointer;
+  }
+  .drop .row:hover, .drop .row.active { background: var(--raise); }
+  .drop img {
+    width: 30px; height: 42px; object-fit: cover;
+    border-radius: 4px; background: var(--bg); flex: none;
+  }
+  .drop .t  { font-size: 14px; }
+  .drop .m  { font-size: 12px; color: var(--muted); }
+  .drop .tagrow { justify-content: space-between; }
+  .pill {
+    font-size: 11px; color: var(--muted);
+    border: 1px solid var(--line2); padding: 2px 8px;
+    border-radius: 999px; white-space: nowrap;
+  }
+
+  /* ---- seed preview (shown after picking a VN) ---- */
+  .seed { display: flex; gap: 16px; margin-top: 16px; align-items: flex-start; }
+  .seed img {
+    width: 78px; height: 108px; object-fit: cover;
+    border-radius: 8px; flex: none; background: var(--surface2);
+  }
+  .seed .name { font-family: Newsreader, serif; font-size: 23px; font-weight: 500; line-height: 1.1; }
+  .seed .alt  { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .seed .meta { color: var(--faint); font-size: 13px; margin-top: 8px; }
+
+  /* ---- seed tag toggles (click to exclude a tag from the search) ---- */
+  .seed-tags { margin-top: 18px; }
+  .seed-tags .hint {
+    font-size: 12px; color: var(--faint); margin: 0 0 10px 2px;
+  }
+  .seed-tags .hint b { color: var(--rose); font-weight: 600; }
+  .tags-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+  /* a single toggleable tag chip */
+  .ttag {
+    display: inline-flex; align-items: center; gap: 6px;
+    cursor: pointer; user-select: none;
+    font-size: 12.5px; padding: 5px 10px; border-radius: 999px;
+    border: 1px solid var(--line2); background: var(--surface2);
+    color: var(--ink); transition: .14s;
+  }
+  .ttag:hover { border-color: var(--rose); }
+  .ttag .rt {                       /* the small rating number */
+    color: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums;
+  }
+  .ttag.dim { opacity: .45; }       /* passes filters but beyond theme depth */
+  .ttag.off {                       /* explicitly excluded by the user */
+    opacity: .4; text-decoration: line-through; border-style: dashed;
+  }
+  .ttag.off .dot { background: var(--faint) !important; }
+
+  /* ---- tag chips (tag mode selection) ---- */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 13px; padding: 6px 8px 6px 11px;
+    border-radius: 999px; border: 1px solid var(--line2); background: var(--surface2);
+  }
+  .chip .x {
+    cursor: pointer; color: var(--muted);
+    width: 16px; height: 16px; display: grid; place-items: center; border-radius: 50%;
+  }
+  .chip .x:hover { background: var(--raise); color: var(--ink); }
+  /* coloured dot indicating tag category */
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .dot.cont { background: var(--rose); }
+  .dot.tech { background: var(--cyan); }
+  .dot.ero  { background: var(--ero);  }
+
+  /* ---- option controls (sliders, toggles, checkboxes) ---- */
+  .controls {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 18px 26px;
+    margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line);
+  }
+  .ctl .lbl { display: flex; justify-content: space-between; }
+  .ctl .lbl b { color: var(--ink); font-weight: 600; text-transform: none; letter-spacing: 0; }
+  input[type=range] { width: 100%; accent-color: var(--rose); margin-top: 4px; }
+  /* segmented button group (Has all / Has any) */
+  .seg {
+    display: inline-flex; gap: 2px; background: var(--bg);
+    border: 1px solid var(--line2); border-radius: 9px; padding: 3px; margin-top: 4px;
+  }
+  .seg button {
+    appearance: none; border: 0; background: transparent; color: var(--muted);
+    font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 6px; cursor: pointer;
+  }
+  .seg button[aria-pressed="true"] { background: var(--raise); color: var(--ink); }
+  /* checkbox rows */
+  .check {
+    display: flex; align-items: center; gap: 9px;
+    font-size: 14px; color: var(--muted); cursor: pointer; margin-top: 6px;
+  }
+  .check input { accent-color: var(--rose); width: 16px; height: 16px; }
+
+  /* ---- primary action button ---- */
+  .go {
+    appearance: none; border: 0; cursor: pointer; font: inherit;
+    font-weight: 600; font-size: 15px; margin-top: 22px; width: 100%;
+    padding: 14px; border-radius: 12px; color: #1a0d13;
+    background: linear-gradient(180deg, #ff7aa0, var(--rose)); transition: .15s;
+  }
+  .go:hover    { filter: brightness(1.06); }
+  .go:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* ============================================================
+     STATUS & ERRORS
+     ============================================================ */
+  .status {
+    margin: 30px 2px 8px; color: var(--muted); font-size: 14px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .spin {
+    width: 15px; height: 15px;
+    border: 2px solid var(--line2); border-top-color: var(--rose);
+    border-radius: 50%; animation: s .7s linear infinite;
+  }
+  @keyframes s { to { transform: rotate(360deg); } }
+  .err {
+    background: rgba(217,106,122,.1); border: 1px solid rgba(217,106,122,.4);
+    color: #f0b8c1; padding: 14px 16px; border-radius: 12px;
+    margin-top: 18px; font-size: 14px;
+  }
+
+  /* ============================================================
+     RESULTS GRID
+     ============================================================ */
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(244px, 1fr));
+    gap: 18px; margin-top: 14px;
+  }
+  /* individual result card */
+  .card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 16px; overflow: hidden;
+    display: flex; flex-direction: column;
+    transition: .18s; text-decoration: none;
+  }
+  .card:hover { transform: translateY(-3px); border-color: var(--line2); box-shadow: var(--shadow); }
+
+  /* cover image area */
+  .cov { position: relative; aspect-ratio: 3/4.1; background: var(--surface2); overflow: hidden; }
+  .cov img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .cov img.blur { filter: blur(22px) brightness(.7); transform: scale(1.1); }
+  /* "flagged" overlay shown when blur is active */
+  .nsfw {
+    position: absolute; inset: 0; display: none; place-items: center;
+    font-size: 12px; color: var(--ink);
+    background: rgba(14,11,22,.35);
+    letter-spacing: .1em; text-transform: uppercase;
+  }
+  .cov.flagged .nsfw { display: grid; }
+
+  /* affinity arc badge (SVG ring + number) */
+  .arc {
+    position: absolute; top: 9px; right: 9px;
+    width: 46px; height: 46px;
+    background: rgba(14,11,22,.62); border-radius: 50%; backdrop-filter: blur(3px);
+  }
+  .arc svg { transform: rotate(-90deg); }
+  .arc .v {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums;
+  }
+
+  /* card text body */
+  .body { padding: 13px 14px 15px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .ttl  { font-family: Newsreader, serif; font-size: 18px; font-weight: 500; line-height: 1.12; }
+  .row2 { display: flex; gap: 10px; font-size: 12px; color: var(--faint); align-items: center; }
+  .rate { color: var(--gold); font-weight: 600; }
+
+  /* "why it matched" tag row at card bottom */
+  .why {
+    margin-top: auto; padding-top: 9px; border-top: 1px solid var(--line);
+    display: flex; flex-wrap: wrap; gap: 5px;
+  }
+  .mtag {
+    font-size: 11px; padding: 3px 8px; border-radius: 999px;
+    background: var(--surface2); border: 1px solid var(--line2);
+    display: inline-flex; align-items: center; gap: 5px; color: var(--muted);
+  }
+  .mtag.staff { border-color: rgba(232,185,100,.4); color: var(--gold); }
+
+  .empty { color: var(--faint); font-size: 14px; padding: 40px 0; text-align: center; }
+
+  /* ---- Load more button ---- */
+  .load-more-wrap { text-align: center; margin-top: 28px; }
+  .load-more {
+    appearance: none; border: 1px solid var(--line2); background: var(--surface2);
+    color: var(--muted); font: inherit; font-size: 14px; font-weight: 500;
+    padding: 11px 32px; border-radius: 12px; cursor: pointer; transition: .18s;
+  }
+  .load-more:hover { border-color: var(--rose); color: var(--ink); }
+  .load-more:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* ---- Sort bar (appears between status and results after a search) ---- */
+  .sort-bar {
+    display: flex; align-items: center; gap: 10px;
+    margin: 16px 2px 4px; flex-wrap: wrap;
+  }
+  .sort-bar .lbl2 {
+    font-size: 12px; letter-spacing: .04em; text-transform: uppercase;
+    color: var(--faint); margin-right: 2px;
+  }
+  /* reuse .seg / .seg button from the match-mode toggle */
+
+  /* ============================================================
+     FOOTER
+     ============================================================ */
+  footer { margin-top: 50px; color: var(--faint); font-size: 12px; text-align: center; }
+  footer a { color: var(--muted); }
+
+  /* ============================================================
+     RESPONSIVE
+     ============================================================ */
+  @media (max-width: 560px) {
+    .controls { grid-template-columns: 1fr; }
+    h1 { font-size: 46px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ==================== MASTHEAD ==================== -->
+  <header>
+    <div class="kicker">VNDB · Affinity Finder</div>
+    <h1>Find the ones that <em>feel</em> the same.</h1>
+    <p class="sub">
+      Start from a visual novel you loved, or build a taste profile from tags.
+      Affinity ranks the rest of the database by shared themes and the people who made them.
+    </p>
+  </header>
+
+  <!-- ==================== MODE TOGGLE ==================== -->
+  <div class="modes" role="tablist">
+    <button role="tab" aria-selected="true"  data-mode="vn">From a visual novel</button>
+    <button role="tab" aria-selected="false" data-mode="tags">From tags</button>
+  </div>
+
+  <!-- ==================== PANEL: VN MODE ==================== -->
+  <section class="panel" id="panel-vn">
+
+    <!-- Title search input -->
+    <div class="field">
+      <label class="lbl" for="vnq">Seed title</label>
+      <input type="text" id="vnq" autocomplete="off"
+             placeholder="Steins;Gate, Umineko, Saya no Uta…">
+      <div class="drop" id="vndrop" hidden></div>
+    </div>
+
+    <!-- Seed VN preview is injected here by chooseSeed() -->
+    <div id="seedbox"></div>
+
+    <!-- Scoring controls -->
+    <div class="controls">
+      <div class="ctl">
+        <div class="lbl">
+          <span>Weighting</span>
+          <b id="wlabel">75% themes · 25% staff</b>
+        </div>
+        <!-- 0 = all staff, 100 = all themes -->
+        <input type="range" id="weight" min="0" max="100" value="75">
+      </div>
+      <div class="ctl">
+        <div class="lbl">
+          <span>Theme depth</span>
+          <b id="depthlabel">top 15 tags</b>
+        </div>
+        <!-- how many of the seed's top tags to compare against -->
+        <input type="range" id="depth" min="5" max="30" value="15">
+      </div>
+      <div class="ctl">
+        <span class="lbl">Content tags</span>
+        <label class="check">
+          <input type="checkbox" id="incEro"> include sexual-content tags
+        </label>
+        <label class="check">
+          <input type="checkbox" id="incSpoiler"> include spoiler tags
+        </label>
+      </div>
+      <div class="ctl">
+        <span class="lbl">Covers</span>
+        <label class="check">
+          <input type="checkbox" id="blur" checked> blur flagged covers
+        </label>
+      </div>
+    </div>
+
+    <button class="go" id="goVN" disabled>Pick a title to begin</button>
+  </section>
+
+  <!-- ==================== PANEL: TAG MODE ==================== -->
+  <section class="panel" id="panel-tags" hidden>
+
+    <!-- Tag search input -->
+    <div class="field">
+      <label class="lbl" for="tagq">Add tags</label>
+      <input type="text" id="tagq" autocomplete="off"
+             placeholder="psychological, time travel, female protagonist…">
+      <div class="drop" id="tagdrop" hidden></div>
+    </div>
+
+    <!-- Selected tags are rendered here by renderChips() -->
+    <div class="chips" id="tagchips"></div>
+
+    <!-- Filter controls -->
+    <div class="controls">
+      <div class="ctl">
+        <span class="lbl">Match</span>
+        <!-- "and" = VN must have ALL chosen tags; "or" = any -->
+        <div class="seg" id="matchmode">
+          <button aria-pressed="true"  data-v="and">Has all tags</button>
+          <button aria-pressed="false" data-v="or">Has any tag</button>
+        </div>
+      </div>
+      <div class="ctl">
+        <div class="lbl">
+          <span>Min tag strength</span>
+          <b id="lvllabel">1.4</b>
+        </div>
+        <!-- VNDB tag level: 0–3, higher = tag is more strongly voted -->
+        <input type="range" id="minlvl" min="0" max="3" step="0.2" value="1.4">
+      </div>
+      <div class="ctl">
+        <span class="lbl">Covers</span>
+        <label class="check">
+          <input type="checkbox" id="blur2" checked> blur flagged covers
+        </label>
+      </div>
+    </div>
+
+    <button class="go" id="goTags" disabled>Add at least one tag</button>
+  </section>
+
+  <!-- ==================== OUTPUT ==================== -->
+  <!-- Status / spinner / error messages go here -->
+  <div id="status"></div>
+
+  <!--
+    Sort bar — hidden until results are present.
+    Sorting is purely client-side; no extra API calls are made.
+    "Affinity / Coverage" is the default computed score.
+    "Newest" / "Oldest" sort by the `released` field on each VN object.
+  -->
+  <div class="sort-bar" id="sortBar" hidden>
+    <span class="lbl2">Sort by</span>
+    <div class="seg" id="sortMode">
+      <button aria-pressed="true"  data-v="score">Affinity</button>
+      <button aria-pressed="false" data-v="newest">Newest</button>
+      <button aria-pressed="false" data-v="oldest">Oldest</button>
+    </div>
+  </div>
+
+  <!-- Result cards grid goes here -->
+  <div id="results"></div>
+
+  <footer>
+    Data from <a href="https://vndb.org" target="_blank" rel="noopener">VNDB</a>
+    via the public Kana API ·
+    affinity scores are computed locally and are not an official VNDB metric.
+  </footer>
+
+</div><!-- /.wrap -->
+
+<!-- ==================== SCRIPTS ==================== -->
+<!-- Load order matters: api.js and utils.js have no dependencies,
+     scoring.js uses utils.js functions, ui.js uses everything. -->
+<!-- api.js -->
+<script>
+// =============================================================================
+// api.js — VNDB Kana API layer
+//
+// All network requests to VNDB live here. Nothing in this file touches the
+// DOM; it only returns data or throws errors.
+//
+// Official docs: https://api.vndb.org/kana
+// Rate limit: 200 requests per 5 minutes.
+// =============================================================================
+
+
+// ── Base URL ──────────────────────────────────────────────────────────────────
+// If VNDB blocks direct browser requests in your environment (CORS), swap this
+// for a proxy, e.g. "https://api.vndbproxy.org/kana"
+const API_BASE = "https://api.vndb.org/kana";
+
+
+// ── Core fetch wrapper ────────────────────────────────────────────────────────
+/**
+ * Send a POST query to a VNDB Kana endpoint and return the parsed JSON.
+ *
+ * @param {string} path   - e.g. "/vn", "/tag", "/staff"
+ * @param {object} body   - the query object (filters, fields, sort, etc.)
+ * @returns {Promise<object>} parsed response: { results, more, count? }
+ * @throws {Error} with a human-readable message on HTTP errors
+ */
+async function vndbPost(path, body) {
+  const response = await fetch(API_BASE + path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    // Map the most common HTTP error codes to friendly messages
+    const msg =
+      response.status === 429 ? "Rate limit hit — wait a few seconds and try again." :
+      response.status === 400 ? "The query was rejected (try fewer tags or lower theme depth)." :
+                                "VNDB returned " + response.status + ".";
+    throw new Error(msg);
+  }
+
+  return response.json();
+}
+
+
+// ── VN search (typeahead) ─────────────────────────────────────────────────────
+/**
+ * Search VNs by title string. Used to power the seed-title autocomplete.
+ *
+ * Fields fetched: id, title, released, image (for thumbnail), votecount.
+ * Results are sorted by vote count so well-known VNs appear first.
+ *
+ * @param {string} query - partial or full title
+ * @param {number} [limit=8] - max results to return
+ */
+async function searchVNsByTitle(query, limit = 8) {
+  return vndbPost("/vn", {
+    filters: ["search", "=", query],
+    fields: "id, title, released, image.url, votecount",
+    sort: "votecount",
+    reverse: true,
+    results: limit,
+  });
+}
+
+
+// ── VN detail (seed) ──────────────────────────────────────────────────────────
+/**
+ * Fetch full detail for a single VN by its VNDB id (e.g. "v17").
+ * Used after the user picks a seed title from the autocomplete.
+ *
+ * Fields fetched:
+ *   - Basic info: id, title, alttitle, released, rating
+ *   - Cover image + its flagging scores (sexual / violence) for blur logic
+ *   - tags: id, name, rating (0–3), spoiler level (0–2), category
+ *   - staff: id, name, role (scenario / art / music / etc.)
+ *
+ * @param {string} vnId - e.g. "v17"
+ */
+async function fetchVNDetail(vnId) {
+  const { results } = await vndbPost("/vn", {
+    filters: ["id", "=", vnId],
+    fields: [
+      "id", "title", "alttitle", "released", "rating",
+      "image.url", "image.sexual", "image.violence",
+      // tags — we need rating and spoiler level for filtering/weighting
+      "tags.id", "tags.name", "tags.rating", "tags.spoiler", "tags.category",
+      // staff — we need role so we can weight by importance
+      "staff.id", "staff.name", "staff.role",
+    ].join(", "),
+  });
+
+  // The API always returns an array; we only asked for one VN
+  return results[0];
+}
+
+
+// ── Similar VN candidates ─────────────────────────────────────────────────────
+/**
+ * Fetch a page of candidate VNs that share tags or staff with the seed.
+ *
+ * VNDB caps at 100 results per request. Use the `page` param (1-based) to
+ * paginate. The response includes a `more` boolean — true means another page
+ * exists and "Load more" should be shown to the user.
+ *
+ * The tag filter format is: ["tag", "=", [tagId, maxSpoiler, minLevel]]
+ *   - maxSpoiler: 0 = non-spoiler only, 2 = include all spoiler levels
+ *   - minLevel:   minimum average vote strength (0–3)
+ *
+ * @param {string[]} tagIds   - seed tag IDs to match against (up to 12)
+ * @param {string[]} staffIds - seed staff IDs to match against (up to 8)
+ * @param {number}   [page=1] - 1-based page number
+ * @returns {Promise<{ results: object[], more: boolean }>}
+ */
+async function fetchCandidates(tagIds, staffIds, page = 1) {
+  // minLevel 1.0 keeps candidates meaningful; lower = more results but noisier
+  const tagFilters   = tagIds.map(id  => ["tag",   "=", [id, 2, 1.0]]);
+  const staffFilters = staffIds.map(id => ["staff", "=", ["id", "=", id]]);
+  const orPredicate  = ["or", ...tagFilters, ...staffFilters];
+
+  // Return the full response object so callers can read both `results` and `more`
+  return vndbPost("/vn", {
+    filters: orPredicate,
+    fields: [
+      "id", "title", "alttitle", "released", "rating",
+      "image.url", "image.sexual", "image.violence",
+      // We need tags + staff again to score the candidates locally
+      "tags.id", "tags.rating", "tags.category",
+      "staff.id", "staff.role",
+    ].join(", "),
+    sort: "votecount",  // surface well-known VNs so their tags are well-voted
+    reverse: true,
+    results: 100,       // VNDB's per-request maximum
+    page,               // 1-based; increment for subsequent pages
+  });
+}
+
+
+// ── Tag search (typeahead) ────────────────────────────────────────────────────
+/**
+ * Search VNDB tags by name. Used to power the tag-mode autocomplete.
+ *
+ * Results are sorted by vn_count so popular / broad tags appear first.
+ *
+ * @param {string} query   - partial tag name
+ * @param {number} [limit=10]
+ */
+async function searchTags(query, limit = 10) {
+  return vndbPost("/tag", {
+    filters: ["search", "=", query],
+    fields: "id, name, category, vn_count",
+    sort: "vn_count",
+    reverse: true,
+    results: limit,
+  });
+}
+
+
+// ── Tag-mode VN search ────────────────────────────────────────────────────────
+/**
+ * Fetch VNs that match a set of user-chosen tags directly (tag mode).
+ *
+ * Unlike the VN-mode flow, there is no second local-scoring step here —
+ * VNDB's filter IS the query. We do a light re-rank locally by coverage
+ * (how many of the chosen tags the VN actually has) and tag strength.
+ *
+ * @param {object[]} tags      - array of { id, name } chosen by the user
+ * @param {string}   matchMode - "and" (all tags required) or "or" (any tag)
+ * @param {number}   minLevel  - minimum tag strength (0–3)
+ */
+async function fetchVNsByTags(tags, matchMode, minLevel, page = 1) {
+  // Build one predicate per chosen tag
+  const predicates = tags.map(t => ["tag", "=", [t.id, 2, minLevel]]);
+
+  // If only one tag, use it directly (VNDB doesn't accept ["and", single])
+  const filters =
+    predicates.length === 1 ? predicates[0]
+                            : [matchMode, ...predicates];
+
+  // Return the full response so callers can read both `results` and `more`
+  return vndbPost("/vn", {
+    filters,
+    fields: [
+      "id", "title", "alttitle", "released", "rating",
+      "image.url", "image.sexual", "image.violence",
+      "tags.id", "tags.rating",
+    ].join(", "),
+    sort: "rating",
+    reverse: true,
+    results: 100,       // VNDB's per-request maximum
+    page,               // 1-based; increment for subsequent pages
+  });
+}
+
+</script>
+<!-- utils.js -->
+<script>
+// =============================================================================
+// utils.js — pure helper functions
+//
+// No DOM access, no API calls. All functions are stateless and side-effect
+// free, making them easy to test or swap out individually.
+// =============================================================================
+
+
+// ── String helpers ─────────────────────────────────────────────────────────────
+
+/**
+ * Escape special HTML characters to prevent XSS when inserting user data or
+ * API data into innerHTML.
+ *
+ * @param {string|null|undefined} str
+ * @returns {string}
+ */
+function esc(str) {
+  return (str || "").replace(/[&<>"]/g, c => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+  }[c]));
+}
+
+/**
+ * Extract the 4-digit year from a VNDB release date string.
+ * VNDB dates can be "YYYY-MM-DD", "YYYY-MM", "YYYY", or "TBA".
+ *
+ * @param {string|null} dateStr
+ * @returns {string}  e.g. "2004", "TBA", or "—" if null
+ */
+function year(dateStr) {
+  if (!dateStr)            return "—";
+  if (dateStr === "TBA")   return "TBA";
+  return dateStr.slice(0, 4);
+}
+
+/**
+ * Convert a VNDB raw rating (10–100) to a 2-decimal display string.
+ * VNDB stores ratings as integers scaled by 10 (e.g. 87 = 8.70).
+ *
+ * @param {number|null} rating
+ * @returns {string|null}  e.g. "8.70", or null if no rating
+ */
+function formatRating(rating) {
+  if (!rating) return null;
+  return (rating / 10).toFixed(2);
+}
+
+
+// ── Image flagging ─────────────────────────────────────────────────────────────
+
+/**
+ * Decide whether a cover image should be considered NSFW / blurred.
+ *
+ * VNDB users vote on each image's sexual and violence content on a 0–2 scale.
+ * The thresholds below are calibrated so that:
+ *   sexual >= 1.2 → averages to "suggestive" or higher
+ *   violence >= 1.4 → averages to "violent" or higher
+ *
+ * Adjust these numbers if you want stricter or looser filtering.
+ *
+ * @param {object|null} image - the image object from the VNDB API
+ * @returns {boolean}
+ */
+function isFlagged(image) {
+  if (!image) return false;
+  return (image.sexual   || 0) >= 1.2
+      || (image.violence || 0) >= 1.4;
+}
+
+
+// ── Debounce ───────────────────────────────────────────────────────────────────
+
+/**
+ * Return a debounced version of `fn` that only fires after `ms` milliseconds
+ * of silence. Used to throttle autocomplete API calls while the user types.
+ *
+ * @param {Function} fn
+ * @param {number}   ms
+ * @returns {Function}
+ */
+function debounce(fn, ms) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), ms);
+  };
+}
+
+
+// ── SVG affinity arc badge ────────────────────────────────────────────────────
+
+/**
+ * Build the SVG ring + number badge shown on each result card.
+ *
+ * The ring fills proportionally to `pct` (0–1) and changes colour:
+ *   >= 60% → rose (strong match)
+ *   >= 35% → gold (decent match)
+ *   <  35% → faint grey (weak match)
+ *
+ * To change the badge size, adjust the `size` constant and the `r` (radius)
+ * so that r = size/2 - strokeWidth.
+ *
+ * @param {number} pct - affinity score between 0 and 1
+ * @returns {string} HTML string for the .arc element
+ */
+function buildArcBadge(pct) {
+  const size        = 46;
+  const strokeWidth = 3;
+  const r           = size / 2 - strokeWidth;          // radius
+  const circum      = 2 * Math.PI * r;                  // full circumference
+  const dashOffset  = circum * (1 - pct);               // how much of ring to leave empty
+
+  const colour =
+    pct >= 0.6 ? "var(--rose)" :
+    pct >= 0.35 ? "var(--gold)" :
+                  "var(--faint)";
+
+  return `
+    <div class="arc">
+      <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+        <!-- background track -->
+        <circle cx="${size/2}" cy="${size/2}" r="${r}"
+          fill="none" stroke="rgba(255,255,255,.12)" stroke-width="${strokeWidth}"/>
+        <!-- filled arc — stroke-dashoffset controls how much is shown -->
+        <circle cx="${size/2}" cy="${size/2}" r="${r}"
+          fill="none" stroke="${colour}" stroke-width="${strokeWidth}"
+          stroke-linecap="round"
+          stroke-dasharray="${circum}"
+          stroke-dashoffset="${dashOffset}"/>
+      </svg>
+      <!-- numeric label in the centre -->
+      <div class="v">${Math.round(pct * 100)}</div>
+    </div>`;
+}
+
+</script>
+<!-- scoring.js -->
+<script>
+// =============================================================================
+// scoring.js — similarity and ranking logic
+//
+// This file contains all the math that turns raw VNDB tag/staff data into
+// an "affinity" score between two visual novels. Everything here is pure:
+// no DOM access, no API calls, no side effects.
+//
+// OVERVIEW OF THE SCORING MODEL
+// ─────────────────────────────
+// Affinity = (tagWeight × tagScore) + (staffWeight × staffScore)
+//
+//   tagScore   — cosine similarity between the seed's and candidate's tag
+//                rating vectors. Tags the user chose to include (filtering
+//                out ero/spoiler if unchecked) act as the coordinate axes.
+//
+//   staffScore — fraction of the seed's weighted creator "mass" that also
+//                appears in the candidate. Writers count more than QA staff.
+//
+//   tagWeight / staffWeight — set by the user's slider (default 75 / 25).
+// =============================================================================
+
+
+// ── Staff role weights ────────────────────────────────────────────────────────
+/**
+ * How much each staff role contributes to the staff-similarity score.
+ * Scale is arbitrary (only ratios matter). Adjust to taste.
+ *
+ * The idea: a shared scenario writer is much more predictive of "same feel"
+ * than a shared QA tester, so we weight accordingly.
+ */
+const STAFF_ROLE_WEIGHTS = {
+  scenario:   1.0,   // writer — strongest signal
+  director:   1.0,   // overall director
+  art:        1.0,   // background art
+  chardesign: 0.9,   // character design
+  music:      0.8,   // composer
+  songs:      0.4,   // vocalist — weaker predictor of "feel"
+  translator: 0.3,
+  editor:     0.3,
+  qa:         0.2,
+  staff:      0.2,   // catch-all "other staff"
+};
+
+
+// ── Tag vector helpers ────────────────────────────────────────────────────────
+
+/**
+ * Build a weighted tag vector from a VN's tag list.
+ *
+ * The vector is an object mapping tagId → rating (0–3).
+ * Tags that fail the user's filter settings are excluded.
+ *
+ * @param {object[]} tags      - array of tag objects from the VNDB API
+ * @param {object}   options
+ * @param {boolean}  options.incEro      - include sexual-content (ero) tags?
+ * @param {boolean}  options.incSpoiler  - include spoiler level 2 tags?
+ * @param {number}   options.depth       - only keep the N highest-rated tags
+ * @param {Set}      [options.excluded]  - tag IDs the user has manually removed
+ * @returns {object} e.g. { "g1": 2.4, "g505": 1.8, ... }
+ */
+function buildTagVector(tags, { incEro, incSpoiler, depth, excluded }) {
+  const ex = excluded || new Set();
+
+  let filtered = tags.filter(tag => {
+    if (tag.category === "ero"  && !incEro)     return false;
+    if ((tag.spoiler || 0) >= 2 && !incSpoiler) return false;
+    if (ex.has(tag.id))                         return false;  // user-excluded
+    return true;
+  });
+
+  // Sort by rating descending, then take only the top N.
+  // Note: exclusion happens BEFORE the depth slice, so removing a dominant
+  // tag lets the next-strongest tag move into the active window — which is
+  // what broadens the search.
+  filtered.sort((a, b) => b.rating - a.rating);
+  filtered = filtered.slice(0, depth);
+
+  // Convert to a plain { id: rating } object
+  const vector = {};
+  filtered.forEach(tag => { vector[tag.id] = tag.rating; });
+  return vector;
+}
+
+/**
+ * Cosine similarity between two tag vectors (objects of { id: weight }).
+ *
+ * Returns a value between 0 (completely dissimilar) and 1 (identical).
+ * Cosine similarity normalises for vector length, so a short VN with 5
+ * highly relevant tags won't automatically beat a long VN with 50 tags.
+ *
+ * Formula: dot(A, B) / (|A| × |B|)
+ *
+ * @param {object} vecA
+ * @param {object} vecB
+ * @returns {number}
+ */
+function cosine(vecA, vecB) {
+  let dot = 0, magA = 0, magB = 0;
+
+  for (const id in vecA) {
+    magA += vecA[id] * vecA[id];
+    if (vecB[id]) dot += vecA[id] * vecB[id];
+  }
+  for (const id in vecB) {
+    magB += vecB[id] * vecB[id];
+  }
+
+  if (!magA || !magB) return 0;
+  return dot / (Math.sqrt(magA) * Math.sqrt(magB));
+}
+
+
+// ── Staff similarity ──────────────────────────────────────────────────────────
+
+/**
+ * Build a weighted staff map from a VN's staff list.
+ * Maps staffId → highest role-weight for that person (a person can have
+ * multiple credits; we take the most important one).
+ *
+ * @param {object[]} staffList - array of { id, role } objects from VNDB
+ * @returns {object} e.g. { "s42": 1.0, "s81": 0.8 }
+ */
+function buildStaffMap(staffList) {
+  const map = {};
+  staffList.forEach(s => {
+    const w = STAFF_ROLE_WEIGHTS[s.role] ?? 0.2;
+    // If the same person has multiple roles, keep the highest-weight one
+    map[s.id] = Math.max(map[s.id] || 0, w);
+  });
+  return map;
+}
+
+/**
+ * Compute a staff similarity score between a seed VN and a candidate VN.
+ *
+ * Logic: sum the weights of seed staff members who also appear in the
+ * candidate, then divide by the total seed staff weight. This gives a
+ * value in [0, 1] representing the fraction of the seed's creative "mass"
+ * that reappears. We cap at 1 and apply a 1.6× boost because even a
+ * single shared writer is a strong signal and we don't want it drowned out.
+ *
+ * To make staff matter MORE: increase the multiplier (currently 1.6).
+ * To make staff matter LESS: lower it, or reduce the max cap.
+ *
+ * @param {object} seedStaffMap      - output of buildStaffMap(seed.staff)
+ * @param {object[]} candidateStaff  - raw staff array from the candidate VN
+ * @returns {number} score in [0, 1]
+ */
+function staffSimilarity(seedStaffMap, candidateStaff) {
+  const seedTotal = Object.values(seedStaffMap).reduce((a, b) => a + b, 0) || 1;
+
+  // Build a quick lookup set for the candidate's staff IDs
+  const candidateIds = new Set(candidateStaff.map(s => s.id));
+
+  let shared = 0;
+  for (const id in seedStaffMap) {
+    if (candidateIds.has(id)) shared += seedStaffMap[id];
+  }
+
+  return Math.min(1, (shared / seedTotal) * 1.6);
+}
+
+/**
+ * Find which staff IDs are shared between the seed and a candidate.
+ * Used to populate the "why it matched" labels on result cards.
+ *
+ * @param {object}   seedStaffMap
+ * @param {object[]} candidateStaff
+ * @returns {string[]} array of staff IDs
+ */
+function sharedStaffIds(seedStaffMap, candidateStaff) {
+  const candidateIds = new Set(candidateStaff.map(s => s.id));
+  return Object.keys(seedStaffMap).filter(id => candidateIds.has(id));
+}
+
+
+// ── Main scoring pipeline (VN mode) ──────────────────────────────────────────
+
+/**
+ * Score and rank a list of candidate VNs against a seed VN.
+ *
+ * @param {object}   seed          - the full seed VN object (with tags + staff)
+ * @param {object[]} candidates    - array of candidate VNs from fetchCandidates()
+ * @param {object}   options
+ * @param {number}   options.tagWeight   - 0–1, how much tag similarity counts
+ * @param {boolean}  options.incEro
+ * @param {boolean}  options.incSpoiler
+ * @param {number}   options.depth       - how many of seed's tags to use
+ * @param {Set}      [options.excluded]  - tag IDs to ignore on both sides
+ * @returns {object[]} sorted array of:
+ *   { vn, score, tagScore, staffScore, matchedTags, matchedStaffIds }
+ *   Results are NOT sliced — the caller decides how many to display.
+ */
+function rankCandidates(seed, candidates, options) {
+  const {
+    tagWeight,
+    incEro,
+    incSpoiler,
+    depth,
+    excluded = new Set(),
+  } = options;
+
+  const staffWeight = 1 - tagWeight;
+
+  // Build the seed's tag vector and staff map once, reuse for all candidates
+  const seedTagVec  = buildTagVector(seed.tags || [], { incEro, incSpoiler, depth, excluded });
+  const seedStaffMap = buildStaffMap(seed.staff || []);
+
+  // The seed's tags in order, used to label "why it matched"
+  const seedTagsOrdered = Object.entries(seedTagVec)
+    .sort((a, b) => b[1] - a[1])
+    .map(([id]) => id);
+
+  const scored = candidates
+    // Never include the seed itself in results
+    .filter(vn => vn.id !== seed.id)
+    .map(vn => {
+      // Build candidate tag vector (ero + exclusion filters apply here too,
+      // so an excluded tag doesn't distort the candidate's vector length)
+      const candidateTagVec = {};
+      (vn.tags || []).forEach(t => {
+        if (t.category === "ero" && !incEro) return;
+        if (excluded.has(t.id))              return;
+        candidateTagVec[t.id] = t.rating;
+      });
+
+      const tagScore   = cosine(seedTagVec, candidateTagVec);
+      const sScore     = staffSimilarity(seedStaffMap, vn.staff || []);
+      const totalScore = tagWeight * tagScore + staffWeight * sScore;
+
+      // Which of the seed's top tags does this candidate also have?
+      const matchedTags = seedTagsOrdered
+        .filter(id => candidateTagVec[id])
+        .map(id => id);
+
+      const matchedStaff = sharedStaffIds(seedStaffMap, vn.staff || []);
+
+      return { vn, score: totalScore, tagScore, staffScore: sScore, matchedTags, matchedStaffIds: matchedStaff };
+    })
+    // Discard extremely weak matches (saves rendering noise)
+    .filter(x => x.score > 0.02)
+    .sort((a, b) => b.score - a.score);
+    // Note: no slice here — the caller appends pages and slices for display
+
+  return scored;
+}
+
+
+// ── Tag-mode re-ranking ───────────────────────────────────────────────────────
+
+/**
+ * Re-rank tag-mode results by tag coverage and strength.
+ *
+ * VNDB already filtered the VNs; this is a lightweight local sort to surface
+ * VNs that match MORE of the chosen tags more STRONGLY.
+ *
+ * coverage = (# of chosen tags present on VN) / (total chosen tags)
+ * strength = sum of the matched tags' rating scores
+ *
+ * @param {object[]} vns       - VNs returned by fetchVNsByTags()
+ * @param {object[]} chosenTags - array of { id, name } the user picked
+ * @returns {object[]} sorted array of { vn, coverage, matchedTagNames }
+ */
+function rankByTags(vns, chosenTags) {
+  const wantedIds = new Set(chosenTags.map(t => t.id));
+  const nameOf    = Object.fromEntries(chosenTags.map(t => [t.id, t.name]));
+
+  return vns
+    .map(vn => {
+      const hits     = (vn.tags || []).filter(t => wantedIds.has(t.id));
+      const coverage = hits.length / chosenTags.length;   // 0–1
+      const strength = hits.reduce((sum, t) => sum + t.rating, 0);
+
+      // Combined sort key: heavily weight coverage, then strength, then VNDB rating
+      const sortKey = coverage * 100 + strength + (vn.rating || 0) / 40;
+
+      const matchedTagNames = hits.map(t => nameOf[t.id]);
+
+      return { vn, coverage, sortKey, matchedTagNames };
+    })
+    .sort((a, b) => b.sortKey - a.sortKey);
+}
+
+</script>
+<!-- ui.js -->
+<script>
+// =============================================================================
+// ui.js — DOM interactions, event wiring, and rendering
+//
+// This file is the "glue" layer. It reads from the DOM (user inputs), calls
+// api.js and scoring.js, and writes results back to the DOM.
+//
+// STRUCTURE
+// ─────────
+//  1. Mode toggle (VN mode / Tag mode tabs)
+//  2. VN Mode
+//     a. Seed title autocomplete
+//     b. Seed detail display
+//     c. Options (sliders, checkboxes)
+//     d. "Find similar" button handler
+//  3. Tag Mode
+//     a. Tag autocomplete
+//     b. Chosen-tag chip rendering
+//     c. Match-mode toggle (AND / OR)
+//     d. "Find VNs" button handler
+//  4. Shared rendering helpers (status, error, result cards)
+// =============================================================================
+
+
+// =============================================================================
+// 1. MODE TOGGLE
+// =============================================================================
+
+document.querySelectorAll(".modes button").forEach(btn => {
+  btn.onclick = () => {
+    // Update aria-selected on all mode buttons
+    document.querySelectorAll(".modes button").forEach(b =>
+      b.setAttribute("aria-selected", b === btn)
+    );
+
+    const mode = btn.dataset.mode;
+    document.getElementById("panel-vn").hidden    = mode !== "vn";
+    document.getElementById("panel-tags").hidden  = mode !== "tags";
+
+    // Clear any lingering results when switching modes
+    clearOutput();
+  };
+});
+
+// ── Sort bar wiring ───────────────────────────────────────────────────────────
+// Clicking a sort button re-renders the current result set without any new
+// API calls. Both modes keep their full ranked arrays in memory so we always
+// have the data we need to re-sort instantly.
+document.querySelectorAll("#sortMode button").forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll("#sortMode button").forEach(b =>
+      b.setAttribute("aria-pressed", b === btn)
+    );
+    currentSort = btn.dataset.v;
+    redrawCurrentResults();
+  };
+});
+
+/**
+ * Re-render whichever mode's results are on screen with the new sort order.
+ * Called when a sort button is clicked.
+ */
+function redrawCurrentResults() {
+  const vnMode = !document.getElementById("panel-vn").hidden;
+
+  if (vnMode && vnAllRanked.length) {
+    const doBlur      = document.getElementById("blur").checked;
+    const tagNameOf   = Object.fromEntries((seedVN.tags  || []).map(t => [t.id, t.name]));
+    const staffNameOf = Object.fromEntries((seedVN.staff || []).map(s => [s.id, s.name]));
+    const cardData = sortResults(vnAllRanked.slice(0, vnShownCount)).map(x => ({
+      vn:    x.vn,
+      score: x.score,
+      why: [
+        ...x.matchedStaffIds.slice(0, 2).map(id => ({ type: "staff", label: staffNameOf[id] || "shared staff" })),
+        ...x.matchedTags.slice(0, 4).map(id     => ({ type: "tag",   label: tagNameOf[id]   || "shared theme" })),
+      ],
+    }));
+    renderCards(cardData, doBlur, false);
+
+  } else if (!vnMode && tagAllRanked.length) {
+    const doBlur   = tagSearchParams?.doBlur ?? false;
+    const cardData = sortResults(tagAllRanked.slice(0, tagShownCount)).map(x => ({
+      vn:    x.vn,
+      score: x.coverage,
+      why:   x.matchedTagNames.slice(0, 5).map(name => ({ type: "tag", label: name })),
+    }));
+    renderCards(cardData, doBlur, true);
+  }
+}
+
+
+// =============================================================================
+// 2. VN MODE
+// =============================================================================
+
+// The currently selected seed VN object (null until the user picks one)
+let seedVN = null;
+
+// Tag IDs the user has manually excluded from the current seed's search.
+// Reset every time a new seed is chosen.
+let excludedTags = new Set();
+
+// ── Sort state ───────────────────────────────────────────────────────────────
+// 'score'  — default: affinity/coverage descending
+// 'newest' — released date descending (TBA/unknown last)
+// 'oldest' — released date ascending  (TBA/unknown last)
+// Sorting is purely client-side; no extra API calls are made.
+let currentSort = 'score';
+
+// ── VN mode pagination state ──────────────────────────────────────────────────
+// All scored results accumulated across pages (so ranking stays globally correct)
+let vnAllRanked   = [];
+// How many of those results are currently shown on screen
+let vnShownCount  = 0;
+// The next page number to fetch from VNDB (1-based)
+let vnNextPage    = 1;
+// Whether VNDB reported more pages available
+let vnHasMore     = false;
+// Current search params — saved so "Load more" can reuse them
+let vnSearchParams = null;
+// IDs already seen across pages (prevents duplicates if VNDB overlaps pages)
+let vnSeenIds      = new Set();
+// How many results to show per page of display
+const VN_PAGE_SIZE = 24;
+
+// ── 2a. Seed title autocomplete ───────────────────────────────────────────────
+
+const vnInput  = document.getElementById("vnq");
+const vnDropEl = document.getElementById("vndrop");
+
+// Wrap the search in a debounce so we don't fire an API call on every keystroke
+const debouncedVNSearch = debounce(async query => {
+  if (query.trim().length < 2) { vnDropEl.hidden = true; return; }
+
+  try {
+    const { results } = await searchVNsByTitle(query);
+    if (!results.length) { vnDropEl.hidden = true; return; }
+
+    vnDropEl.innerHTML = results.map(vn => `
+      <div class="row" data-id="${vn.id}">
+        <img src="${vn.image?.url || ''}" alt=""
+             onerror="this.style.visibility='hidden'">
+        <div>
+          <div class="t">${esc(vn.title)}</div>
+          <div class="m">${year(vn.released)}</div>
+        </div>
+      </div>`).join("");
+
+    vnDropEl.hidden = false;
+
+    // Clicking a dropdown row selects that VN as the seed
+    vnDropEl.querySelectorAll(".row").forEach(row =>
+      row.onclick = () => selectSeed(row.dataset.id)
+    );
+  } catch (_) {
+    // Silently ignore typeahead errors (user is still typing)
+  }
+}, 300);
+
+vnInput.oninput = e => debouncedVNSearch(e.target.value);
+
+// Close the dropdown when the user clicks outside of it
+document.addEventListener("click", e => {
+  if (!vnInput.parentElement.contains(e.target)) vnDropEl.hidden = true;
+});
+
+
+// ── 2b. Select a seed VN ─────────────────────────────────────────────────────
+
+/**
+ * Called when the user picks a VN from the autocomplete dropdown.
+ * Fetches full detail (tags + staff) and renders the seed preview.
+ */
+async function selectSeed(vnId) {
+  vnDropEl.hidden = true;
+  vnInput.value   = "";
+  setStatus("Loading title…", true);
+
+  try {
+    seedVN = await fetchVNDetail(vnId);
+    excludedTags  = new Set();  // fresh exclusions for the new seed
+    resetVNPagination();        // clear any leftover pagination state
+    renderSeedPreview();
+    clearOutput();
+
+    // Enable the search button now that we have a seed
+    const goBtn = document.getElementById("goVN");
+    goBtn.disabled = false;
+    goBtn.textContent = "Find similar visual novels";
+
+    setStatus("", false);
+  } catch (e) {
+    setStatus("", false);
+    showError(e.message);
+  }
+}
+
+/**
+ * Render the seed VN's cover, title, and summary stats into #seedbox.
+ * Called after selectSeed() and whenever the blur checkbox changes.
+ */
+function renderSeedPreview() {
+  if (!seedVN) return;
+
+  const shouldBlur = document.getElementById("blur").checked && isFlagged(seedVN.image);
+
+  document.getElementById("seedbox").innerHTML = `
+    <div class="seed">
+      <img src="${seedVN.image?.url || ''}" alt=""
+           style="${shouldBlur ? 'filter:blur(14px)' : ''}">
+      <div>
+        <div class="name">${esc(seedVN.title)}</div>
+        ${seedVN.alttitle ? `<div class="alt">${esc(seedVN.alttitle)}</div>` : ""}
+        <div class="meta">
+          ${year(seedVN.released)} ·
+          ${seedVN.rating ? formatRating(seedVN.rating) + " rating" : "unrated"} ·
+          ${(seedVN.tags  || []).length} tags ·
+          ${(seedVN.staff || []).length} staff credits
+        </div>
+      </div>
+    </div>
+    <!-- Tag toggles are injected here by renderSeedTags() -->
+    <div class="seed-tags" id="seedTags"></div>`;
+
+  renderSeedTags();
+}
+
+/**
+ * Render the seed's tags as clickable chips and reflect their current state.
+ *
+ * Three visual states:
+ *   - active  (full colour) : within the current theme-depth window → used in search
+ *   - dim                    : passes filters but ranked below the depth cutoff
+ *   - off (struck through)   : manually excluded by the user
+ *
+ * Clicking any chip toggles its excluded state and re-renders. Excluding an
+ * active tag promotes the next-strongest tag into the active window, which is
+ * how the user broadens the search.
+ *
+ * Called by renderSeedPreview() and whenever depth / ero / spoiler change.
+ */
+function renderSeedTags() {
+  const el = document.getElementById("seedTags");
+  if (!seedVN || !el) return;
+
+  const incEro     = document.getElementById("incEro").checked;
+  const incSpoiler = document.getElementById("incSpoiler").checked;
+  const depth      = +document.getElementById("depth").value;
+
+  // Tags visible for toggling: those that pass the content filters, by rating.
+  // (Capped at 40 so the list stays manageable for tag-heavy VNs.)
+  const visible = (seedVN.tags || [])
+    .filter(t => (t.category !== "ero" || incEro) && ((t.spoiler || 0) < 2 || incSpoiler))
+    .sort((a, b) => b.rating - a.rating)
+    .slice(0, 40);
+
+  // The vector tells us which tags are *actually* active right now
+  const activeVec   = buildTagVector(seedVN.tags || [], { incEro, incSpoiler, depth, excluded: excludedTags });
+  const activeCount = Object.keys(activeVec).length;
+
+  el.innerHTML = `
+    <p class="hint">
+      <b>${activeCount}</b> of these themes shape the search —
+      tap any tag to exclude it and broaden the results.
+    </p>
+    <div class="tags-wrap">
+      ${visible.map(t => {
+        const isOff    = excludedTags.has(t.id);
+        const isActive = !isOff && activeVec[t.id] !== undefined;
+        const cls      = isOff ? "off" : (isActive ? "" : "dim");
+        const title    = isOff ? "excluded — click to restore"
+                       : isActive ? "used in search — click to exclude"
+                       : "below theme depth — click to exclude";
+        return `
+          <span class="ttag ${cls}" data-id="${t.id}" title="${title}">
+            <span class="dot ${t.category}"></span>${esc(t.name)}
+            <span class="rt">${t.rating.toFixed(1)}</span>
+          </span>`;
+      }).join("")}
+    </div>`;
+
+  // Wire up toggling
+  el.querySelectorAll(".ttag").forEach(chip =>
+    chip.onclick = () => {
+      const id = chip.dataset.id;
+      if (excludedTags.has(id)) excludedTags.delete(id);
+      else                      excludedTags.add(id);
+      renderSeedTags();  // re-render to update active/dim/off states live
+    }
+  );
+}
+
+
+// ── 2c. VN mode option controls ───────────────────────────────────────────────
+
+// Weighting slider: left = all staff, right = all themes
+document.getElementById("weight").oninput = e => {
+  const t = +e.target.value; // tag weight %
+  document.getElementById("wlabel").textContent =
+    `${t}% themes · ${100 - t}% staff`;
+};
+
+// Depth slider: how many of the seed's top tags to compare against
+document.getElementById("depth").oninput = e => {
+  document.getElementById("depthlabel").textContent = `top ${e.target.value} tags`;
+  renderSeedTags();   // active/dim states shift as the depth window changes
+};
+
+// Content-tag toggles affect which tags are eligible, so refresh the chips
+document.getElementById("incEro").onchange     = renderSeedTags;
+document.getElementById("incSpoiler").onchange = renderSeedTags;
+
+// Re-render seed preview when blur preference changes
+document.getElementById("blur").onchange = renderSeedPreview;
+
+
+// ── 2d. "Find similar" button ─────────────────────────────────────────────────
+
+document.getElementById("goVN").onclick = runVNModeSearch;
+
+/**
+ * Reset all VN-mode pagination state.
+ * Called at the start of a fresh search and when a new seed is picked.
+ */
+function resetVNPagination() {
+  vnAllRanked   = [];
+  vnShownCount  = 0;
+  vnNextPage    = 1;
+  vnHasMore     = false;
+  vnSeenIds     = new Set();
+  // Note: vnSearchParams is intentionally NOT reset here.
+  // It is set by runVNModeSearch() before this is called, and must
+  // survive the reset so loadMoreVN() can read it on page 1.
+}
+
+/**
+ * Fresh search — resets pagination then fetches page 1.
+ */
+async function runVNModeSearch() {
+  if (!seedVN) return;
+
+  const tagWeight  = +document.getElementById("weight").value / 100;
+  const depth      = +document.getElementById("depth").value;
+  const incEro     = document.getElementById("incEro").checked;
+  const incSpoiler = document.getElementById("incSpoiler").checked;
+  const doBlur     = document.getElementById("blur").checked;
+
+  // Build the seed's active tag vector (respects manual exclusions)
+  const seedTagVec = buildTagVector(seedVN.tags || [], { incEro, incSpoiler, depth, excluded: excludedTags });
+  const tagIds     = Object.keys(seedTagVec);
+
+  if (!tagIds.length) {
+    showError("No themes left to compare — you've excluded them all, or the title has no usable tags. Restore a tag, or enable spoiler / sexual-content tags.");
+    return;
+  }
+
+  // Only pass highly-weighted staff to the candidate query (writer/director/artist)
+  const seedStaffMap = buildStaffMap(seedVN.staff || []);
+  const keyStaffIds  = Object.entries(seedStaffMap)
+    .filter(([, w]) => w >= 0.8)
+    .map(([id]) => id)
+    .slice(0, 8);
+
+  // Set params BEFORE resetVNPagination — the reset no longer nulls params,
+  // but keeping this order explicit documents the dependency clearly.
+  vnSearchParams = { tagIds: tagIds.slice(0, 12), keyStaffIds, tagWeight, incEro, incSpoiler, depth, doBlur };
+
+  resetVNPagination();
+  setStatus("Searching the database for shared themes…", true);
+  clearOutput();
+
+  await loadMoreVN();
+}
+
+/**
+ * Fetch the next page of candidates, score them, merge into vnAllRanked,
+ * and display up to VN_PAGE_SIZE more cards.
+ * Called by both the initial search and the "Load more" button.
+ */
+async function loadMoreVN() {
+  // Guard: vnSearchParams must be set by runVNModeSearch() before this runs.
+  // If it's null something has gone wrong with call order — bail cleanly.
+  if (!vnSearchParams) {
+    showError("Search parameters missing — please run the search again.");
+    return;
+  }
+  const { tagIds, keyStaffIds, tagWeight, incEro, incSpoiler, depth, doBlur } = vnSearchParams;
+  const loadBtn = document.getElementById("loadMoreBtn");
+  if (loadBtn) loadBtn.disabled = true;
+
+  setStatus("Fetching more results…", true);
+
+  try {
+    const { results: candidates, more } = await fetchCandidates(tagIds, keyStaffIds, vnNextPage);
+    vnNextPage++;
+    vnHasMore = more;
+
+    // Deduplicate — VNDB can occasionally return the same VN across pages
+    const fresh = candidates.filter(vn => {
+      if (vnSeenIds.has(vn.id)) return false;
+      vnSeenIds.add(vn.id);
+      return true;
+    });
+
+    // Score this batch and merge into the global ranked list, then re-sort
+    const newScored = rankCandidates(seedVN, fresh, { tagWeight, incEro, incSpoiler, depth, excluded: excludedTags });
+    vnAllRanked = [...vnAllRanked, ...newScored].sort((a, b) => b.score - a.score);
+
+    // Build name lookup maps for card labels
+    const tagNameOf   = Object.fromEntries((seedVN.tags  || []).map(t => [t.id, t.name]));
+    const staffNameOf = Object.fromEntries((seedVN.staff || []).map(s => [s.id, s.name]));
+
+    // Determine the next slice to show
+    const prevShown  = vnShownCount;
+    vnShownCount     = Math.min(vnAllRanked.length, vnShownCount + VN_PAGE_SIZE);
+
+    if (vnAllRanked.length === 0) {
+      setStatus("", false);
+      document.getElementById("results").innerHTML =
+        '<div class="empty">No close matches — try increasing theme depth or including more tag types.</div>';
+      return;
+    }
+
+    // Render the full visible slice (not just the new cards) so global re-sort
+    // can reorder earlier pages correctly as new high-scoring matches arrive
+    const cardData = vnAllRanked.slice(0, vnShownCount).map(x => ({
+      vn:    x.vn,
+      score: x.score,
+      why: [
+        ...x.matchedStaffIds.slice(0, 2).map(id => ({ type: "staff", label: staffNameOf[id] || "shared staff" })),
+        ...x.matchedTags.slice(0, 4).map(id     => ({ type: "tag",   label: tagNameOf[id]   || "shared theme" })),
+      ],
+    }));
+
+    const totalDesc = vnHasMore
+      ? `${vnShownCount} of ${vnAllRanked.length}+ results`
+      : `${vnAllRanked.length} kindred titles`;
+    setStatus(`${totalDesc}, most similar first`, false);
+
+    renderCards(cardData, doBlur, false);
+
+    // Show/hide "Load more" — visible when there are more VNDB pages OR more
+    // already-scored results that haven't been shown yet
+    const canShowMore = vnHasMore || vnShownCount < vnAllRanked.length;
+    renderLoadMore(canShowMore, loadMoreVN);
+
+  } catch (e) {
+    setStatus("", false);
+    showError(e.message);
+  }
+}
+
+
+// =============================================================================
+// 3. TAG MODE
+// =============================================================================
+
+// Array of the user's chosen tags: [{ id, name, category }, ...]
+let chosenTags = [];
+
+// ── Tag mode pagination state ─────────────────────────────────────────────────
+// All VNs fetched and ranked so far across pages
+let tagAllRanked   = [];
+// How many are currently shown
+let tagShownCount  = 0;
+// Next VNDB page to request
+let tagNextPage    = 1;
+// Whether VNDB says more pages exist
+let tagHasMore     = false;
+// Saved params for "Load more"
+let tagSearchParams = null;
+const TAG_PAGE_SIZE = 24;
+
+// ── 3a. Tag autocomplete ──────────────────────────────────────────────────────
+
+const tagInput  = document.getElementById("tagq");
+const tagDropEl = document.getElementById("tagdrop");
+
+const debouncedTagSearch = debounce(async query => {
+  if (query.trim().length < 2) { tagDropEl.hidden = true; return; }
+
+  try {
+    const { results } = await searchTags(query);
+
+    // Filter out tags the user already added
+    const fresh = results.filter(t => !chosenTags.find(c => c.id === t.id));
+    if (!fresh.length) { tagDropEl.hidden = true; return; }
+
+    tagDropEl.innerHTML = fresh.map(t => `
+      <div class="row tagrow"
+           data-id="${t.id}" data-name="${esc(t.name)}" data-cat="${t.category}">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="dot ${t.category}"></span>
+          <span class="t">${esc(t.name)}</span>
+        </div>
+        <span class="pill">${(t.vn_count || 0).toLocaleString()} VNs</span>
+      </div>`).join("");
+
+    tagDropEl.hidden = false;
+
+    tagDropEl.querySelectorAll(".row").forEach(row =>
+      row.onclick = () => {
+        // Add this tag to the chosen list
+        chosenTags.push({ id: row.dataset.id, name: row.dataset.name, category: row.dataset.cat });
+        tagInput.value  = "";
+        tagDropEl.hidden = true;
+        renderTagChips();
+      }
+    );
+  } catch (_) { /* silent */ }
+}, 300);
+
+tagInput.oninput = e => debouncedTagSearch(e.target.value);
+
+document.addEventListener("click", e => {
+  if (!tagInput.parentElement.contains(e.target)) tagDropEl.hidden = true;
+});
+
+
+// ── 3b. Tag chip rendering ────────────────────────────────────────────────────
+
+/**
+ * Re-render the row of chosen-tag chips and update the go button state.
+ * Called whenever chosenTags changes.
+ */
+function renderTagChips() {
+  const box = document.getElementById("tagchips");
+
+  box.innerHTML = chosenTags.map((t, i) => `
+    <span class="chip">
+      <span class="dot ${t.category}"></span>
+      ${esc(t.name)}
+      <!-- data-i is the index into chosenTags[] -->
+      <span class="x" data-i="${i}">✕</span>
+    </span>`).join("");
+
+  // Wire up the remove (✕) buttons
+  box.querySelectorAll(".x").forEach(x =>
+    x.onclick = () => {
+      chosenTags.splice(+x.dataset.i, 1); // remove by index
+      renderTagChips();
+    }
+  );
+
+  // Keep the go button in sync
+  const goBtn = document.getElementById("goTags");
+  goBtn.disabled = chosenTags.length === 0;
+  goBtn.textContent = chosenTags.length
+    ? `Find visual novels (${chosenTags.length} tag${chosenTags.length > 1 ? "s" : ""})`
+    : "Add at least one tag";
+}
+
+
+// ── 3c. Match-mode toggle (AND / OR) ─────────────────────────────────────────
+
+document.querySelectorAll("#matchmode button").forEach(btn =>
+  btn.onclick = () =>
+    document.querySelectorAll("#matchmode button").forEach(b =>
+      b.setAttribute("aria-pressed", b === btn)
+    )
+);
+
+
+// ── 3d. Min tag strength slider ───────────────────────────────────────────────
+
+document.getElementById("minlvl").oninput = e =>
+  document.getElementById("lvllabel").textContent = (+e.target.value).toFixed(1);
+
+
+// ── 3e. "Find VNs" button ─────────────────────────────────────────────────────
+
+document.getElementById("goTags").onclick = runTagModeSearch;
+
+/**
+ * Fresh tag-mode search — resets pagination then fetches page 1.
+ */
+async function runTagModeSearch() {
+  if (!chosenTags.length) return;
+
+  const matchMode = document.querySelector("#matchmode button[aria-pressed='true']").dataset.v;
+  const minLevel  = +document.getElementById("minlvl").value;
+  const doBlur    = document.getElementById("blur2").checked;
+
+  tagSearchParams = { matchMode, minLevel, doBlur };
+  tagAllRanked    = [];
+  tagShownCount   = 0;
+  tagNextPage     = 1;
+  tagHasMore      = false;
+
+  setStatus("Searching…", true);
+  clearOutput();
+  await loadMoreTags();
+}
+
+/**
+ * Fetch the next page of tag-mode results, merge and re-rank, then display.
+ * Called by the initial search and by the "Load more" button.
+ */
+async function loadMoreTags() {
+  if (!tagSearchParams) {
+    showError("Search parameters missing — please run the search again.");
+    return;
+  }
+  const { matchMode, minLevel, doBlur } = tagSearchParams;
+  const loadBtn = document.getElementById("loadMoreBtn");
+  if (loadBtn) loadBtn.disabled = true;
+
+  setStatus("Fetching more results…", true);
+
+  try {
+    const { results: vns, more } = await fetchVNsByTags(chosenTags, matchMode, minLevel, tagNextPage);
+    tagNextPage++;
+    tagHasMore = more;
+
+    // Merge new results into the ranked pool and re-sort
+    const newRanked = rankByTags(vns, chosenTags);
+    tagAllRanked    = [...tagAllRanked, ...newRanked].sort((a, b) => b.sortKey - a.sortKey);
+
+    tagShownCount = Math.min(tagAllRanked.length, tagShownCount + TAG_PAGE_SIZE);
+
+    if (tagAllRanked.length === 0) {
+      setStatus("", false);
+      document.getElementById("results").innerHTML =
+        '<div class="empty">Nothing matched. Lower the tag strength or switch to "Has any tag".</div>';
+      return;
+    }
+
+    const cardData = tagAllRanked.slice(0, tagShownCount).map(x => ({
+      vn:    x.vn,
+      score: x.coverage,
+      why:   x.matchedTagNames.slice(0, 5).map(name => ({ type: "tag", label: name })),
+    }));
+
+    const totalDesc = tagHasMore
+      ? `${tagShownCount} of ${tagAllRanked.length}+ matches`
+      : `${tagAllRanked.length} matches`;
+    setStatus(totalDesc, false);
+
+    renderCards(cardData, doBlur, true);
+
+    const canShowMore = tagHasMore || tagShownCount < tagAllRanked.length;
+    renderLoadMore(canShowMore, loadMoreTags);
+
+  } catch (e) {
+    setStatus("", false);
+    showError(e.message);
+  }
+}
+
+
+// =============================================================================
+// 4. SHARED RENDERING HELPERS
+// =============================================================================
+
+/**
+ * Show/hide a status message (with optional spinner).
+ *
+ * @param {string}  text     - message to display, or "" to clear
+ * @param {boolean} loading  - whether to show the spinner
+ */
+function setStatus(text, loading) {
+  document.getElementById("status").innerHTML = text
+    ? `<div class="status">
+         ${loading ? '<span class="spin"></span>' : ""}
+         ${esc(text)}
+       </div>`
+    : "";
+}
+
+/**
+ * Show a styled error message in the status area.
+ *
+ * @param {string} message
+ */
+function showError(message) {
+  document.getElementById("status").innerHTML =
+    `<div class="err">${esc(message)}</div>`;
+}
+
+/** Clear the status bar, results grid, sort bar, and any load-more button. */
+function clearOutput() {
+  document.getElementById("status").innerHTML  = "";
+  document.getElementById("results").innerHTML = "";
+  document.getElementById("sortBar").hidden    = true;
+  // Reset sort back to default so the bar starts fresh on next search
+  currentSort = "score";
+  document.querySelectorAll("#sortMode button").forEach(b =>
+    b.setAttribute("aria-pressed", b.dataset.v === "score")
+  );
+  const wrap = document.getElementById("loadMoreWrap");
+  if (wrap) wrap.remove();
+}
+
+/**
+ * Sort a result array according to currentSort.
+ *
+ * VNDB date strings: 'YYYY-MM-DD', 'YYYY-MM', 'YYYY', 'TBA', or null.
+ * We convert them to an integer for comparison:
+ *   '2004-10-29' -> 20041029
+ *   '2004-10'    -> 20041000  (day unknown)
+ *   '2004'       -> 20040000  (month+day unknown)
+ *   'TBA' / null -> 0         (sorted to the bottom in both directions)
+ *
+ * @param {object[]} items - each item must have a .vn.released field
+ * @returns {object[]} new sorted array (original not mutated)
+ */
+function sortResults(items) {
+  if (currentSort === 'score') {
+    // Re-sort by score descending defensively (page merges can disturb order)
+    return [...items].sort((a, b) => {
+      const sa = a.score    ?? a.coverage ?? 0;
+      const sb = b.score    ?? b.coverage ?? 0;
+      return sb - sa;
+    });
+  }
+
+  // Convert a VNDB date string to a sortable integer
+  function dateKey(vn) {
+    const d = vn.released;
+    if (!d || d === 'TBA') return 0;  // unknown: sort to end
+    const parts = d.split('-');
+    const y   = parts[0] || '0000';
+    const m   = (parts[1] || '00').padStart(2, '0');
+    const day = (parts[2] || '00').padStart(2, '0');
+    return parseInt(y + m + day, 10);
+  }
+
+  return [...items].sort((a, b) => {
+    const ka = dateKey(a.vn);
+    const kb = dateKey(b.vn);
+    // Unknown dates always sink to the bottom regardless of sort direction
+    if (ka === 0 && kb === 0) return 0;
+    if (ka === 0) return  1;
+    if (kb === 0) return -1;
+    return currentSort === 'newest' ? kb - ka : ka - kb;
+  });
+}
+
+/**
+ * Show or hide the "Load more" button below the results grid.
+ *
+ * @param {boolean}  show     - whether to render the button at all
+ * @param {Function} handler  - the async function to call when clicked
+ */
+function renderLoadMore(show, handler) {
+  // Remove any existing load-more wrapper first
+  const existing = document.getElementById("loadMoreWrap");
+  if (existing) existing.remove();
+
+  if (!show) return;
+
+  const wrap = document.createElement("div");
+  wrap.id        = "loadMoreWrap";
+  wrap.className = "load-more-wrap";
+  wrap.innerHTML = `<button class="load-more" id="loadMoreBtn">Load more</button>`;
+  document.getElementById("results").after(wrap);
+
+  document.getElementById("loadMoreBtn").onclick = handler;
+}
+
+/**
+ * Render an array of result objects as a grid of cards.
+ *
+ * @param {object[]} items       - array of { vn, score, why[] }
+ * @param {boolean}  doBlur      - whether to blur flagged covers
+ * @param {boolean}  isCoverage  - if true, label the score "tag match" instead of "affinity"
+ */
+function renderCards(items, doBlur, isCoverage) {
+  // Show the sort bar now that we have results
+  document.getElementById("sortBar").hidden = false;
+  // Relabel the score button to match the current mode
+  document.querySelector("#sortMode button[data-v='score']").textContent =
+    isCoverage ? "Coverage" : "Affinity";
+
+  // Apply the active sort before rendering
+  items = sortResults(items);
+
+  document.getElementById("results").innerHTML =
+    '<div class="grid">' +
+    items.map(({ vn, score, why }) => {
+      const blurCover = doBlur && isFlagged(vn.image);
+      const ratingStr = formatRating(vn.rating);
+      const scoreLabel = isCoverage ? "tag match" : "affinity";
+
+      return `
+        <a class="card" href="https://vndb.org/${vn.id}" target="_blank" rel="noopener">
+
+          <!-- Cover image -->
+          <div class="cov ${blurCover ? "flagged" : ""}">
+            ${vn.image?.url
+              ? `<img class="${blurCover ? "blur" : ""}"
+                      src="${vn.image.url}" alt="" loading="lazy">`
+              : ""}
+            <div class="nsfw">flagged</div>
+            ${buildArcBadge(score)}
+          </div>
+
+          <!-- Text body -->
+          <div class="body">
+            <div class="ttl">${esc(vn.title)}</div>
+
+            <div class="row2">
+              <span>${year(vn.released)}</span>
+              ${ratingStr
+                ? `<span class="rate">★ ${ratingStr}</span>`
+                : `<span>unrated</span>`}
+              <span style="margin-left:auto; color:var(--muted)">
+                ${scoreLabel} ${Math.round(score * 100)}%
+              </span>
+            </div>
+
+            <!-- "Why it matched" tag/staff chips -->
+            ${why.length
+              ? `<div class="why">
+                   ${why.map(w => `
+                     <span class="mtag ${w.type === "staff" ? "staff" : ""}">
+                       ${w.type === "staff" ? "✎ " : ""}${esc(w.label)}
+                     </span>`).join("")}
+                 </div>`
+              : ""}
+          </div>
+        </a>`;
+    }).join("") +
+    "</div>";
+}
+
+</script>
+
+</body>
+</html>
